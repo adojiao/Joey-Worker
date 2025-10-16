@@ -2,30 +2,59 @@ name: Fetch and Update Worker
 
 on:
   schedule:
-    # 每天凌晨2点自动运行（UTC时间）
-    - cron: '0 2 * * *'
-  # 也可以手动触发
-  workflow_dispatch:
-  # 当推送代码到main分支时也运行
-  push:
-    branches: [ main ]
+    - cron: '0 2 * * *'  # 每天UTC时间2点
+  workflow_dispatch:      # 允许手动触发
 
 jobs:
   fetch-worker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write    # 明确授予写入权限
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        # 添加fetch-depth以获取完整历史
+        fetch-depth: 0
+        
+    - name: Setup Git user
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
     - name: Fetch RAW content
       run: |
-        curl -s -o _worker.js "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        # 使用URL编码的URL来避免特殊字符问题
+        RAW_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        echo "Fetching from: $RAW_URL"
         
-    - name: Commit and push if changed
+        # 下载文件并检查是否成功
+        if curl -s -L -f -o _worker.js "$RAW_URL"; then
+          echo "✅ Successfully downloaded _worker.js"
+          ls -la _worker.js
+        else
+          echo "❌ Failed to download _worker.js"
+          exit 1
+        fi
+        
+    - name: Check for changes
+      id: check_changes
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
+        if git diff --quiet _worker.js; then
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No changes detected"
+        else
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "Changes detected in _worker.js"
+          git diff _worker.js
+        fi
+        
+    - name: Commit and push changes
+      if: steps.check_changes.outputs.changes == 'true'
+      run: |
         git add _worker.js
-        git diff --staged --quiet || git commit -m "Auto-update _worker.js from source"
+        git commit -m "🤖 Auto-update _worker.js [$(date +'%Y-%m-%d %H:%M:%S')]"
         git push
+        echo "✅ Changes committed and pushed successfully"
