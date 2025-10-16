@@ -1,15 +1,66 @@
-name: Quick Test
+name: Fetch and Update Worker
 
-on: workflow_dispatch
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 jobs:
-  test:
+  fetch-worker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
     steps:
-    - uses: actions/checkout@v4
-    - run: |
-        curl -s -o _worker.js "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        # 明确设置分支
+        ref: main
+        
+    - name: Setup Git identity
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+    - name: Download _worker.js
+      run: |
+        echo "📥 开始下载 _worker.js..."
+        curl -s -L -f -o _worker.js \
+          "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        
+        echo "✅ 下载完成"
+        echo "文件信息:"
         ls -la _worker.js
+        echo "文件前几行:"
+        head -n 3 _worker.js
+        
+    - name: Check file changes
+      id: git-check
+      run: |
+        # 检查文件是否有变化
+        if git status --porcelain | grep -q "_worker.js"; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "🔄 检测到 _worker.js 有变化"
+          git status --porcelain
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+          echo "✅ _worker.js 无变化"
+        fi
+        
+    - name: Commit and push changes
+      if: steps.git-check.outputs.has_changes == 'true'
+      run: |
+        echo "🚀 提交并推送更改..."
         git add _worker.js
-        git commit -m "Test" || echo "No changes"
-        git push || echo "Push skipped"
+        git commit -m "🤖 Auto-update _worker.js [$(date +'%Y-%m-%d %H:%M:%S')]"
+        git push origin main
+        echo "✅ 更改已推送到仓库"
+        
+    - name: Create artifact (for backup)
+      uses: actions/upload-artifact@v4
+      with:
+        name: worker-backup
+        path: _worker.js
+        retention-days: 1
