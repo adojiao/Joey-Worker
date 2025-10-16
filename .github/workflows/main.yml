@@ -1,60 +1,39 @@
-name: Fetch and Update Worker
+name: Debug Fetch Worker
 
 on:
-  schedule:
-    - cron: '0 2 * * *'  # 每天UTC时间2点
-  workflow_dispatch:      # 允许手动触发
+  workflow_dispatch:
 
 jobs:
-  fetch-worker:
+  debug-worker:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write    # 明确授予写入权限
     
     steps:
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
+      
+    - name: Show current directory
+      run: |
+        echo "工作目录: $(pwd)"
+        echo "文件列表:"
+        ls -la
+        
+    - name: Download file
+      run: |
+        # 直接下载并显示结果
+        curl -v -L -o _worker.js \
+          "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97" 2> curl.log
+        
+        echo "CURL 日志:"
+        cat curl.log
+        
+        echo "下载的文件信息:"
+        ls -la _worker.js || echo "文件不存在"
+        
+        echo "文件内容:"
+        cat _worker.js || echo "无法读取文件"
+        
+    - name: Save as artifact
+      uses: actions/upload-artifact@v4
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        # 添加fetch-depth以获取完整历史
-        fetch-depth: 0
-        
-    - name: Setup Git user
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
-    - name: Fetch RAW content
-      run: |
-        # 使用URL编码的URL来避免特殊字符问题
-        RAW_URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
-        echo "Fetching from: $RAW_URL"
-        
-        # 下载文件并检查是否成功
-        if curl -s -L -f -o _worker.js "$RAW_URL"; then
-          echo "✅ Successfully downloaded _worker.js"
-          ls -la _worker.js
-        else
-          echo "❌ Failed to download _worker.js"
-          exit 1
-        fi
-        
-    - name: Check for changes
-      id: check_changes
-      run: |
-        if git diff --quiet _worker.js; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-          echo "No changes detected"
-        else
-          echo "changes=true" >> $GITHUB_OUTPUT
-          echo "Changes detected in _worker.js"
-          git diff _worker.js
-        fi
-        
-    - name: Commit and push changes
-      if: steps.check_changes.outputs.changes == 'true'
-      run: |
-        git add _worker.js
-        git commit -m "🤖 Auto-update _worker.js [$(date +'%Y-%m-%d %H:%M:%S')]"
-        git push
-        echo "✅ Changes committed and pushed successfully"
+        name: worker-file
+        path: _worker.js
