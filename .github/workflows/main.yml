@@ -21,7 +21,7 @@ jobs:
         count=0
         while [ $count -lt $max_retries ]
         do
-          if curl -s -f -o _worker.js "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"; then
+          if curl -s -f -o _worker.js "https://github.com/byJoey/cfnew/blob/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"; then
             echo "Successfully fetched _worker.js"
             break
           else
