@@ -1,0 +1,61 @@
+name: Smart Fetch Worker
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天UTC时间2点
+  workflow_dispatch:
+
+jobs:
+  fetch-worker:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Fetch RAW content with retry
+      run: |
+        max_retries=3
+        count=0
+        while [ $count -lt $max_retries ]
+        do
+          if curl -s -f -o _worker.js "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"; then
+            echo "Successfully fetched _worker.js"
+            break
+          else
+            count=$((count+1))
+            echo "Failed to fetch, retry $count of $max_retries"
+            sleep 5
+          fi
+        done
+        
+        if [ $count -eq $max_retries ]; then
+          echo "Failed to fetch _worker.js after $max_retries attempts"
+          exit 1
+        fi
+        
+    - name: Check file size
+      run: |
+        filesize=$(stat -f%z _worker.js 2>/dev/null || stat -c%s _worker.js 2>/dev/null)
+        if [ $filesize -eq 0 ]; then
+          echo "Error: Downloaded file is empty"
+          exit 1
+        fi
+        echo "File size: $filesize bytes"
+        
+    - name: Commit changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        
+        # 检查是否有变化
+        if git diff --quiet _worker.js; then
+          echo "No changes to commit"
+        else
+          git add _worker.js
+          git commit -m "🤖 Auto-update _worker.js [$(date +'%Y-%m-%d %H:%M')]"
+          git push
+          echo "Changes committed and pushed"
+        fi
