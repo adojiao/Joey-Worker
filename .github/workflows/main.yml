@@ -1,55 +1,42 @@
-name: Fetch and Update Worker
+name: Diagnostic Worker Fetch
 
 on:
-  schedule:
-    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
-  fetch-worker:
+  diagnose:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     
     steps:
-    - name: Checkout main branch
+    - name: Checkout
       uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        ref: main  # 明确指定分支
-        
-    - name: Setup Git
+      
+    - name: Test URL accessibility
       run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        echo "测试 URL: $URL"
         
-    - name: Download _worker.js
-      run: |
-        echo "当前工作目录: $(pwd)"
-        echo "目录内容:"
-        ls -la
+        # 测试HTTP状态码
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+        echo "HTTP 状态码: $STATUS"
         
-        # 下载文件
-        curl -s -L -f -o _worker.js \
-          "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        # 测试文件大小
+        SIZE=$(curl -s -o /dev/null -w "%{size_download}" "$URL")
+        echo "文件大小: $SIZE bytes"
         
-        echo "下载后目录内容:"
-        ls -la
-        echo "_worker.js 文件内容预览:"
-        head -n 5 _worker.js || echo "文件为空或不存在"
-        
-    - name: Commit and push
-      run: |
-        echo "Git 状态:"
-        git status
-        
-        # 强制添加文件并提交
-        git add -f _worker.js
-        
-        if git diff --staged --quiet; then
-          echo "没有变化需要提交"
+        # 下载并检查
+        if curl -s -f -o test_worker.js "$URL"; then
+          echo "✅ 下载成功"
+          echo "文件内容类型:"
+          file test_worker.js
+          echo "文件行数:"
+          wc -l test_worker.js
         else
-          git commit -m "🤖 Auto-update _worker.js [$(date +'%Y-%m-%d %H:%M:%S')]"
-          git push origin main
-          echo "✅ 文件已提交并推送到 main 分支"
+          echo "❌ 下载失败"
         fi
+        
+    - name: Check Git status
+      run: |
+        echo "当前分支: $(git branch --show-current)"
+        echo "Git 状态:"
+        git status --porcelain
