@@ -1,42 +1,15 @@
-name: Diagnostic Worker Fetch
+name: Quick Test
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
-  diagnose:
+  test:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Test URL accessibility
-      run: |
-        URL="https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
-        echo "测试 URL: $URL"
-        
-        # 测试HTTP状态码
-        STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-        echo "HTTP 状态码: $STATUS"
-        
-        # 测试文件大小
-        SIZE=$(curl -s -o /dev/null -w "%{size_download}" "$URL")
-        echo "文件大小: $SIZE bytes"
-        
-        # 下载并检查
-        if curl -s -f -o test_worker.js "$URL"; then
-          echo "✅ 下载成功"
-          echo "文件内容类型:"
-          file test_worker.js
-          echo "文件行数:"
-          wc -l test_worker.js
-        else
-          echo "❌ 下载失败"
-        fi
-        
-    - name: Check Git status
-      run: |
-        echo "当前分支: $(git branch --show-current)"
-        echo "Git 状态:"
-        git status --porcelain
+    - uses: actions/checkout@v4
+    - run: |
+        curl -s -o _worker.js "https://raw.githubusercontent.com/byJoey/cfnew/refs/heads/main/%E5%B0%91%E5%B9%B4%E4%BD%A0%E7%9B%B8%E4%BF%A1%E5%85%89%E5%90%97"
+        ls -la _worker.js
+        git add _worker.js
+        git commit -m "Test" || echo "No changes"
+        git push || echo "Push skipped"
